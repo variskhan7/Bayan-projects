@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isValidEnquiry() {
+      return request.resource.data.fullName is string &&
+             request.resource.data.fullName.size() >= 3 &&
+             request.resource.data.email is string &&
+             request.resource.data.phone is string &&
+             request.resource.data.subject is string &&
+             request.resource.data.message is string &&
+             request.resource.data.message.size() >= 15;
+    }
+
+    function isValidApplication() {
+      return request.resource.data.fullName is string &&
+             request.resource.data.fullName.size() >= 3 &&
+             request.resource.data.email is string &&
+             request.resource.data.phone is string &&
+             request.resource.data.position is string &&
+             request.resource.data.introduction is string &&
+             request.resource.data.introduction.size() >= 20;
+    }
+
+    // Public readable content collections (published items only)
+    match /projects/{projectId} {
+      allow read: if resource.data.published == true;
+      allow write: if false; // Modifiable only via server / admin SDK
+    }
+
+    match /sectors/{sectorId} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+
+    match /services/{serviceId} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+
+    match /news/{newsId} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+
+    // Contact inquiries: Public can create with validated schema; cannot read or delete
+    match /enquiries/{enquiryId} {
+      allow create: if isValidEnquiry();
+      allow read, update, delete: if false;
+    }
+
+    // Job applications: Public can create with validated schema; cannot read or delete
+    match /jobApplications/{applicationId} {
+      allow create: if isValidApplication();
+      allow read, update, delete: if false;
+    }
+  }
+}
+
