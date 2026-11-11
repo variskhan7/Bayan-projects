@@ -81,6 +81,8 @@ export interface JobOpening {
   description: string;
   responsibilities: string[];
   requirements: string[];
+  published?: boolean;
+  postedDate?: string;
 }
 
 export interface JobApplication {
@@ -91,4 +93,3 @@ export interface JobApplication {
   introduction: string;
   createdAt?: any;
 }
-
