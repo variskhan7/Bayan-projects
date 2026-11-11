@@ -8,7 +8,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { STATIC_SECTORS, STATIC_PROJECTS } from '../data/staticData';
-import { getCustomMedia, SiteMediaMap } from '../services/mediaService';
+import { getCustomMedia, SiteMediaMap, resolveVideoSource } from '../services/mediaService';
 
 const DEFAULT_HERO_SLIDES = [
   {
@@ -59,18 +59,39 @@ export const Home: React.FC = () => {
 
   const activeProject = STATIC_PROJECTS[currentProjectIndex] || STATIC_PROJECTS[0];
 
-  // Resolve custom images or fallback to defaults
+  // Dynamic projects with potential overrides
+  const projectImage = (customMedia[`project_${activeProject.id}` as keyof SiteMediaMap] as string) || activeProject.imageUrl;
+  const projectTitle = customMedia[`project_${activeProject.id}_title`] || activeProject.title;
+  const projectDescription = customMedia[`project_${activeProject.id}_desc`] || activeProject.description;
+
   const heroSlideImages = [
     customMedia.hero_slide_1 || DEFAULT_HERO_SLIDES[0].image,
     customMedia.hero_slide_2 || DEFAULT_HERO_SLIDES[1].image,
     customMedia.hero_slide_3 || DEFAULT_HERO_SLIDES[2].image,
   ];
 
+  const heroSlideTitles = [
+    customMedia.hero_slide_1_title || DEFAULT_HERO_SLIDES[0].title,
+    customMedia.hero_slide_2_title || DEFAULT_HERO_SLIDES[1].title,
+    customMedia.hero_slide_3_title || DEFAULT_HERO_SLIDES[2].title,
+  ];
+
+  const heroSlideSubtitles = [
+    customMedia.hero_slide_1_subtitle || DEFAULT_HERO_SLIDES[0].subtitle,
+    customMedia.hero_slide_2_subtitle || DEFAULT_HERO_SLIDES[1].subtitle,
+    customMedia.hero_slide_3_subtitle || DEFAULT_HERO_SLIDES[2].subtitle,
+  ];
+
+  const aboutTitle = customMedia.about_title || 'BAYAN PROJECTS';
+  const aboutSubtitle = customMedia.about_subtitle || '#StrongFoundationForStrongNation #BuildingNation #TransformingLives';
+  const aboutDescription = customMedia.about_description || 'Bayan Projects is one of the most admired Technology led Engineering, Procurement and Construction (EPC) companies. We have expertise in providing sustainable solutions in the execution of large and complex urban and industrial infrastructure projects while also demonstrating strong presence in refineries, power and water plants. We leverage our domain knowledge across various business segments to address the shift to clean energy to meet the nation’s Net Zero ambitions.';
+
+  const videoTitle = customMedia.video_title || 'VIDEOS';
+  const videoSubtitle = customMedia.video_subtitle || 'Bayan Projects is actively investing in its infrastructure, alleviating supply chain bottlenecks, and ensuring access to electricity, water, sanitation, and healthcare for all. Reflecting on the journey, Bayan Projects has cultivated capabilities, setting the stage for #TransformingLives.';
+
   const experienceBg = customMedia.about_experience_bg || 'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?auto=format&fit=crop&w=1200&q=80';
   const videoSpotlightPoster = customMedia.video_spotlight_poster || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1400&q=80';
-
-  // Dynamic projects with potential overrides
-  const projectImage = (customMedia[`project_${activeProject.id}` as keyof SiteMediaMap] as string) || activeProject.imageUrl;
+  const currentVideo = resolveVideoSource(customMedia.spotlight_video_url);
 
   const sectorsFeatured = [
     {
@@ -118,10 +139,10 @@ export const Home: React.FC = () => {
             {/* Hero Text exactly styled like Tata image 1 */}
             <div className="absolute left-6 md:left-16 lg:left-24 bottom-24 max-w-2xl text-white">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3 drop-shadow-md">
-                {slide.title}
+                {heroSlideTitles[idx]}
               </h1>
               <p className="text-sm sm:text-base text-gray-100 font-normal drop-shadow leading-relaxed">
-                {slide.subtitle}
+                {heroSlideSubtitles[idx]}
               </p>
             </div>
           </div>
@@ -165,13 +186,13 @@ export const Home: React.FC = () => {
 
         <div className="max-w-4xl mx-auto px-6 relative z-10">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-gray-900 tracking-wider uppercase mb-2">
-            BAYAN PROJECTS
+            {aboutTitle}
           </h2>
 
           <div className="text-xs sm:text-sm font-bold text-[#006bb6] space-x-3 sm:space-x-5 mb-8">
-            <span>#StrongFoundationForStrongNation</span>
-            <span>#BuildingNation</span>
-            <span>#TransformingLives</span>
+            {aboutSubtitle.split(' ').map((tag, tIdx) => (
+              <span key={tIdx}>{tag}</span>
+            ))}
           </div>
 
           {/* Giant Number Cutout Graphic with Image Fill ("25") */}
@@ -196,7 +217,7 @@ export const Home: React.FC = () => {
           </h3>
 
           <p className="text-sm sm:text-base text-gray-600 leading-relaxed max-w-3xl mx-auto font-normal">
-            Bayan Projects is one of the most admired Technology led Engineering, Procurement and Construction (EPC) companies. We have expertise in providing sustainable solutions in the execution of large and complex urban and industrial infrastructure projects while also demonstrating strong presence in refineries, power and water plants. We leverage our domain knowledge across various business segments to address the shift to clean energy to meet the nation’s Net Zero ambitions.
+            {aboutDescription}
           </p>
 
           <div className="mt-8 flex justify-center">
@@ -253,10 +274,10 @@ export const Home: React.FC = () => {
                   {activeProject.sector} &bull; {activeProject.location}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
-                  {activeProject.title}
+                  {projectTitle}
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-300 leading-relaxed line-clamp-2">
-                  {activeProject.description}
+                  {projectDescription}
                 </p>
               </div>
 
@@ -361,11 +382,11 @@ export const Home: React.FC = () => {
 
         <div className="max-w-5xl mx-auto px-6 text-center">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-wider uppercase mb-3">
-            VIDEOS
+            {videoTitle}
           </h2>
 
           <p className="text-xs sm:text-sm text-gray-300 max-w-3xl mx-auto leading-relaxed mb-12 font-normal">
-            Bayan Projects is actively investing in its infrastructure, alleviating supply chain bottlenecks, and ensuring access to electricity, water, sanitation, and healthcare for all. Reflecting on the journey, Bayan Projects has cultivated capabilities, setting the stage for #TransformingLives.
+            {videoSubtitle}
           </p>
 
           <div className="relative max-w-3xl mx-auto rounded-2xl overflow-hidden shadow-2xl border border-white/20 group">
@@ -415,16 +436,64 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Video Modal */}
+      {/* Video Modal with Live Player */}
       {videoModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-navy rounded-xl p-4 max-w-3xl w-full text-white">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-sm">BAYAN PROJECTS - Corporate Video Presentation</h3>
-              <button onClick={() => setVideoModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#091524] rounded-2xl p-4 sm:p-6 max-w-4xl w-full text-white shadow-2xl border border-white/20 relative">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#006bb6] flex items-center justify-center shadow">
+                  <Play className="w-4 h-4 fill-current text-white translate-x-0.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-white">
+                    {videoTitle} - Corporate Presentation
+                  </h3>
+                  <span className="text-[11px] text-gray-400">
+                    Bayan Projects Engineering & Infrastructure
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setVideoModalOpen(false)} 
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white flex items-center justify-center text-sm font-bold transition-colors"
+                aria-label="Close Video"
+              >
+                ✕
+              </button>
             </div>
-            <div className="aspect-video bg-black rounded flex items-center justify-center">
-              <p className="text-sm text-gray-400">Corporate Showcase Video Player</p>
+
+            <div className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-inner">
+              {currentVideo.type === 'iframe' ? (
+                <iframe
+                  src={currentVideo.src}
+                  title="Bayan Projects Corporate Video"
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : (
+                <video
+                  src={currentVideo.src}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain bg-black"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-gray-400">
+              <p className="line-clamp-1 italic text-gray-300">
+                {videoSubtitle}
+              </p>
+              <button
+                onClick={() => setVideoModalOpen(false)}
+                className="px-5 py-2 bg-[#006bb6] hover:bg-[#005590] text-white rounded-lg text-xs font-bold self-end sm:self-auto shrink-0 transition-colors shadow"
+              >
+                Close Video
+              </button>
             </div>
           </div>
         </div>

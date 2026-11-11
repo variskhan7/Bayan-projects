@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,10 +11,11 @@ import {
   ShieldCheck, 
   Sparkles, 
   Send,
-  AlertCircle
+  AlertCircle,
+  Inbox
 } from 'lucide-react';
 import { SectionHeading } from '../components/common/SectionHeading';
-import { STATIC_JOB_OPENINGS } from '../data/staticData';
+import { getPublishedJobs } from '../services/jobService';
 import { submitApplication } from '../services/applicationService';
 import { JobOpening } from '../types';
 
@@ -48,10 +49,20 @@ const BENEFITS = [
 ];
 
 export const Careers: React.FC = () => {
+  const [jobs, setJobs] = useState<JobOpening[]>(getPublishedJobs());
   const [selectedJob, setSelectedJob] = useState<JobOpening | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Real-time synchronization when admin adds, removes, or toggles jobs
+  useEffect(() => {
+    const handleJobsUpdated = () => {
+      setJobs(getPublishedJobs());
+    };
+    window.addEventListener('bayan_jobs_updated', handleJobsUpdated);
+    return () => window.removeEventListener('bayan_jobs_updated', handleJobsUpdated);
+  }, []);
 
   const {
     register,
@@ -142,78 +153,108 @@ export const Careers: React.FC = () => {
         </div>
       </section>
 
-      {/* CURRENT JOB OPENINGS */}
+      {/* CURRENT JOB OPENINGS (STRICTLY ADMIN CONTROLLED) */}
       <section className="py-20 bg-light-bg border-t border-gray-200">
         <div className="section-container">
           <SectionHeading
             badge="Vacancies"
-            title="Featured Job Openings"
-            subtitle="Discover open opportunities across engineering, project controls, safety management, and graduate development."
+            title="Current Job Openings"
+            subtitle="Verified official career opportunities published directly by our Human Resources department."
           />
 
-          <div className="space-y-6 max-w-4xl mx-auto">
-            {STATIC_JOB_OPENINGS.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                  <div>
-                    <span className="text-xs font-bold text-corporate uppercase tracking-wider block mb-1">
-                      {job.department}
-                    </span>
-                    <h3 className="text-xl font-bold text-navy">{job.title}</h3>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs bg-light-bg text-dark-text px-3 py-1.5 rounded-full font-semibold border border-gray-200">
-                      {job.type}
-                    </span>
-                    <button
-                      onClick={() => handleApplyClick(job)}
-                      className="px-5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-bold rounded shadow transition-all transform active:scale-95 whitespace-nowrap"
-                    >
-                      Apply Now
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs text-secondary-text mb-4">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-accent" /> {job.location}
-                  </span>
-                  <span>&bull;</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-accent" /> Experience: {job.experience}
-                  </span>
-                </div>
-
-                <p className="text-xs text-secondary-text leading-relaxed mb-4">
-                  {job.description}
-                </p>
-
-                <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="font-bold text-navy block mb-1">Key Responsibilities:</span>
-                    <ul className="list-disc list-inside space-y-1 text-secondary-text">
-                      {job.responsibilities.slice(0, 2).map((r, rIdx) => (
-                        <li key={rIdx} className="line-clamp-1">{r}</li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <span className="font-bold text-navy block mb-1">Candidate Requirements:</span>
-                    <ul className="list-disc list-inside space-y-1 text-secondary-text">
-                      {job.requirements.slice(0, 2).map((req, reqIdx) => (
-                        <li key={reqIdx} className="line-clamp-1">{req}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
+          {jobs.length === 0 ? (
+            /* Empty State: Shown when admin has not published any jobs */
+            <div className="bg-white rounded-2xl p-12 text-center max-w-xl mx-auto shadow-sm border border-gray-200">
+              <div className="w-16 h-16 rounded-full bg-blue-50 text-corporate flex items-center justify-center mx-auto mb-4">
+                <Inbox className="w-8 h-8 text-secondary-text" />
               </div>
-            ))}
-          </div>
+              <h3 className="text-xl font-bold text-navy mb-2">No Openings Currently Available</h3>
+              <p className="text-xs sm:text-sm text-secondary-text leading-relaxed mb-6">
+                There are no open job positions posted at this moment. You can still submit an open candidacy application below, and our recruitment team will reach out when relevant positions open.
+              </p>
+              <a
+                href="#application-form-section"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-navy hover:bg-corporate text-white font-semibold text-xs rounded shadow transition-all"
+              >
+                <span>Submit General Application</span>
+              </a>
+            </div>
+          ) : (
+            /* Admin Published Job Openings */
+            <div className="space-y-6 max-w-4xl mx-auto">
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-corporate uppercase tracking-wider block mb-1">
+                        {job.department}
+                      </span>
+                      <h3 className="text-xl font-bold text-navy">{job.title}</h3>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs bg-light-bg text-dark-text px-3 py-1.5 rounded-full font-semibold border border-gray-200">
+                        {job.type}
+                      </span>
+                      <button
+                        onClick={() => handleApplyClick(job)}
+                        className="px-5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-bold rounded shadow transition-all transform active:scale-95 whitespace-nowrap"
+                      >
+                        Apply Now
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-secondary-text mb-4">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-accent" /> {job.location}
+                    </span>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-accent" /> Experience: {job.experience}
+                    </span>
+                    {job.postedDate && (
+                      <>
+                        <span>&bull;</span>
+                        <span>Posted: {job.postedDate}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-secondary-text leading-relaxed mb-4">
+                    {job.description}
+                  </p>
+
+                  <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    {job.responsibilities && job.responsibilities.length > 0 && (
+                      <div>
+                        <span className="font-bold text-navy block mb-1">Key Responsibilities:</span>
+                        <ul className="list-disc list-inside space-y-1 text-secondary-text">
+                          {job.responsibilities.map((r, rIdx) => (
+                            <li key={rIdx} className="line-clamp-2">{r}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {job.requirements && job.requirements.length > 0 && (
+                      <div>
+                        <span className="font-bold text-navy block mb-1">Candidate Requirements:</span>
+                        <ul className="list-disc list-inside space-y-1 text-secondary-text">
+                          {job.requirements.map((req, reqIdx) => (
+                            <li key={reqIdx} className="line-clamp-2">{req}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -223,7 +264,7 @@ export const Careers: React.FC = () => {
           <SectionHeading
             badge="Online Application"
             title="Submit Your Candidacy"
-            subtitle="Apply for one of our published openings or submit an open application for our regional engineering talent roster."
+            subtitle="Apply for an active opening or submit a general application for upcoming infrastructure tenders."
           />
 
           {submitSuccess && (
@@ -354,7 +395,7 @@ export const Careers: React.FC = () => {
                 )}
               </button>
               <p className="text-[11px] text-secondary-text text-center mt-3">
-                Your application is saved directly to our secure Firestore recruitment registry.
+                Your application is saved directly to our secure recruitment registry.
               </p>
             </div>
           </form>
@@ -365,4 +406,3 @@ export const Careers: React.FC = () => {
 };
 
 export default Careers;
-

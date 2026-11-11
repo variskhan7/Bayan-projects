@@ -62,12 +62,14 @@ export interface NewsArticle {
 }
 
 export interface Enquiry {
+  id?: string;
   fullName: string;
   email: string;
   phone: string;
   subject: string;
   message: string;
   createdAt?: any;
+  submittedAt?: string;
 }
 
 export interface JobOpening {
@@ -86,10 +88,13 @@ export interface JobOpening {
 }
 
 export interface JobApplication {
+  id?: string;
   fullName: string;
   email: string;
   phone: string;
   position: string;
   introduction: string;
   createdAt?: any;
+  submittedAt?: string;
+  status?: 'New' | 'Reviewed' | 'Shortlisted' | 'Rejected';
 }
