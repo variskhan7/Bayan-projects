@@ -89,19 +89,19 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-50 w-full shadow-md bg-white">
       <div className="flex flex-col md:flex-row w-full">
         {/* Brand Logo Box */}
-        <div className="bg-white flex items-center justify-between px-4 sm:px-6 md:px-8 py-2.5 md:py-3 md:w-[300px] lg:w-[340px] shrink-0 border-r border-gray-100 z-20">
+        <div className="bg-white flex items-center justify-between px-3 sm:px-5 md:px-6 py-2 md:py-2.5 md:w-auto lg:min-w-[340px] shrink-0 border-r border-gray-100 z-20">
           <Link to="/" className="flex items-center gap-2.5 sm:gap-3 group">
             <img 
               src={logoSrc} 
               alt="BAYAN PROJECTS Logo" 
-              className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 object-contain rounded-full shadow-sm border border-amber-200/50 p-0.5 group-hover:scale-105 transition-transform duration-300"
+              className="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 object-contain rounded-full shadow-md border-2 border-[#D4AF37] p-0.5 group-hover:scale-105 transition-transform duration-300 bg-white"
             />
-            <div className="flex flex-col">
-              <span className="text-lg sm:text-xl lg:text-2xl font-black text-[#0b4887] tracking-wider leading-none">
-                BAYAN
+            <div className="flex flex-col justify-center">
+              <span className="text-base sm:text-lg lg:text-xl font-black tracking-wider leading-none whitespace-nowrap bg-gradient-to-r from-[#B8860B] via-[#E5B25D] to-[#996515] bg-clip-text text-transparent drop-shadow-sm">
+                BAYAN PROJECTS
               </span>
-              <span className="text-[10px] sm:text-xs font-bold text-[#0b4887] tracking-widest leading-none mt-1">
-                PROJECTS
+              <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] uppercase text-[#B38728] mt-0.5 whitespace-nowrap">
+                BUILDERS &amp; DEVELOPERS
               </span>
             </div>
           </Link>
@@ -469,18 +469,18 @@ export const Header: React.FC = () => {
             <div className="p-5 bg-[#081729] border-t border-white/10 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <a 
-                  href="tel:+966114567890" 
+                  href="tel:+919456496286" 
                   className="flex items-center justify-center gap-2 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold text-gray-200 transition-colors"
                 >
                   <Phone className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Call Us</span>
+                  <span>+91 94564 96286</span>
                 </a>
                 <a 
-                  href="mailto:info@bayanprojects.com" 
-                  className="flex items-center justify-center gap-2 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold text-gray-200 transition-colors"
+                  href="mailto:mkccc86@gmail.com" 
+                  className="flex items-center justify-center gap-2 py-2.5 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-semibold text-gray-200 transition-colors truncate px-2"
                 >
-                  <Mail className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Email</span>
+                  <Mail className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="truncate">mkccc86@gmail.com</span>
                 </a>
               </div>
 

@@ -27,6 +27,41 @@ export function getPublishedJobs(): JobOpening[] {
 }
 
 /**
+ * Fetch jobs from the server to synchronize across multiple devices and mobile phones.
+ */
+export async function fetchRemoteJobs(): Promise<JobOpening[]> {
+  try {
+    const res = await fetch('/api/jobs');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(data));
+        window.dispatchEvent(new Event('bayan_jobs_updated'));
+        return data;
+      }
+    }
+  } catch (err) {
+    try {
+      const staticRes = await fetch('/site-jobs.json');
+      if (staticRes.ok) {
+        const data = await staticRes.json();
+        if (Array.isArray(data)) {
+          localStorage.setItem(JOBS_STORAGE_KEY, JSON.stringify(data));
+          window.dispatchEvent(new Event('bayan_jobs_updated'));
+          return data;
+        }
+      }
+    } catch (_) {}
+  }
+  return getAllAdminJobs();
+}
+
+// Automatically sync jobs on initial load
+if (typeof window !== 'undefined') {
+  fetchRemoteJobs();
+}
+
+/**
  * Save jobs list
  */
 export function saveAdminJobs(jobs: JobOpening[]): void {
@@ -36,6 +71,13 @@ export function saveAdminJobs(jobs: JobOpening[]): void {
   } catch (err) {
     console.error('Failed saving admin jobs:', err);
   }
+
+  // Persist to server so ALL other devices see newly published/removed jobs
+  fetch('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(jobs)
+  }).catch((err) => console.warn('Could not sync jobs to server endpoint:', err));
 }
 
 /**

@@ -46,6 +46,7 @@ import {
   resetAllMedia, 
   fileToBase64,
   resolveVideoSource,
+  uploadVideoFileToServer,
   saveUploadedVideoFile,
   getUploadedVideoObjectUrl,
   clearUploadedVideoFile,
@@ -366,7 +367,7 @@ export const AdminDashboard: React.FC = () => {
       current.spotlight_video_source = 'link';
       saveCustomMedia(current);
 
-      setStatusMessage({ text: 'Video link applied and saved live on website!', type: 'success' });
+      setStatusMessage({ text: 'Video link saved! Sabhi devices par live update ho gayi hai.', type: 'success' });
     }
     setTimeout(() => setStatusMessage(null), 3500);
   };
@@ -378,26 +379,30 @@ export const AdminDashboard: React.FC = () => {
     }
 
     setVideoUploading(true);
-    setStatusMessage({ text: `Uploading video "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`, type: 'info' });
+    setStatusMessage({ text: `Uploading video "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB) to server...`, type: 'info' });
 
     try {
-      const { blobUrl, meta } = await saveUploadedVideoFile(file);
-      
-      // Revoke previous blob url if any
+      // 1. Upload to server so ALL devices (phones, laptops, other browsers) can stream it
+      const serverResult = await uploadVideoFileToServer(file);
+
+      // 2. Also cache locally in IndexedDB as backup
+      await saveUploadedVideoFile(file);
+
+      const videoPlayUrl = serverResult.url || URL.createObjectURL(file);
       if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
         URL.revokeObjectURL(uploadedVideoBlobUrl);
       }
-      setUploadedVideoBlobUrl(blobUrl);
+      setUploadedVideoBlobUrl(videoPlayUrl);
 
       // Save custom media pointer
       const current = getCustomMedia();
       current.spotlight_video_source = 'upload';
-      current.spotlight_video_name = meta.name;
-      delete current.spotlight_video_url; // Clear link if previous
+      current.spotlight_video_name = file.name;
+      current.spotlight_video_url = serverResult.url || videoPlayUrl;
       saveCustomMedia(current);
 
       setVideoLinkInput('');
-      setStatusMessage({ text: `Video "${file.name}" uploaded and saved successfully!`, type: 'success' });
+      setStatusMessage({ text: `Video "${file.name}" uploaded to server! Ab ye sabhi devices par chalegi.`, type: 'success' });
       setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
       console.error('Video upload error:', err);
@@ -695,7 +700,7 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs font-bold">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 text-xs font-bold">
             <Link
               to="/careers"
               target="_blank"
@@ -1410,19 +1415,19 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   {/* Instructions Box in Hindi */}
-                  <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-100 space-y-2 text-xs text-navy">
-                    <span className="font-bold text-[11px] uppercase tracking-wider text-[#006bb6] block">
-                      📌 Link Paste Karne Ke Niyam:
+                  <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200 space-y-2.5 text-xs text-navy">
+                    <span className="font-bold text-[11px] uppercase tracking-wider text-[#006bb6] flex items-center gap-1.5">
+                      <span>📌 Sabhi Devices (Mobile &amp; PC) Par Video Chalne Ke Niyam:</span>
                     </span>
-                    <ul className="space-y-1.5 text-[11px] text-gray-700 list-disc list-inside">
+                    <ul className="space-y-2 text-[11px] text-gray-700 list-disc list-inside">
                       <li>
-                        <strong>Google Drive:</strong> Drive me video par right click karke <em>Share &gt; Anyone with the link</em> karein, fir copy link yaha paste karein.
+                        <strong>Google Drive:</strong> Drive me video file par Right Click karein &rarr; <em>Share</em> &rarr; General access me <strong>&quot;Anyone with the link&quot; (Jiske paas link ho wo dekh sake)</strong> select karein. (Agar private hogi to dusre device par Google block kar dega).
                       </li>
                       <li>
-                        <strong>YouTube:</strong> YouTube video ka link (e.g. <code>https://youtu.be/...</code>) paste karein.
+                        <strong>YouTube (Best &amp; Universal):</strong> YouTube ka link (e.g. <code>https://youtu.be/...</code> ya <code>https://youtube.com/watch?v=...</code>) paste karein. Ye bina kisi login ke 100% sabhi mobiles aur computers par chalta hai.
                       </li>
                       <li>
-                        <strong>Google Photos / Cloud MP4:</strong> Video ka public web view link paste karein.
+                        <strong>Direct MP4 File Upload (Option 2):</strong> Video file ko direct upload karein — ye seedha server par save hokar sabhi users ko dikhegi.
                       </li>
                     </ul>
                   </div>
@@ -1478,7 +1483,7 @@ export const AdminDashboard: React.FC = () => {
                   </label>
 
                   <p className="text-[10px] text-gray-500 text-center">
-                    ✨ High-capacity IndexedDB storage use ho raha hai - video bina kisi error ke safely browser database me store hogi.
+                    ✨ Server Hosting + High-capacity IndexedDB Active — Video sabhi devices aur mobile phones par directly stream hogi.
                   </p>
                 </div>
 

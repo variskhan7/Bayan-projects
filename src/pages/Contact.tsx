@@ -101,19 +101,34 @@ export const Contact: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-6">
-                {/* Address */}
+              <div className="space-y-5">
+                {/* Office 1: Delhi India */}
                 <div className="flex items-start gap-4 p-5 bg-light-bg rounded-xl border border-gray-100">
                   <div className="w-10 h-10 rounded-lg bg-corporate/10 flex items-center justify-center text-corporate shrink-0">
                     <MapPin className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-navy text-sm mb-1">Office Address</h4>
+                    <span className="text-[10px] font-black uppercase text-accent tracking-wider block">Registered Office</span>
+                    <h4 className="font-bold text-navy text-sm mb-1">New Delhi, India</h4>
                     <p className="text-xs text-secondary-text leading-relaxed">
-                      Bayan Corporate Tower, 14th Floor<br />
-                      King Fahd Road, Al-Olaya District<br />
-                      P.O. Box 48210, Riyadh 12214<br />
-                      Kingdom of Saudi Arabia
+                      18, Block N, Green Park Extension,<br />
+                      New Delhi, Delhi 110016, India
+                    </p>
+                  </div>
+                </div>
+
+                {/* Office 2: Riyadh Saudi Arabia */}
+                <div className="flex items-start gap-4 p-5 bg-light-bg rounded-xl border border-gray-100">
+                  <div className="w-10 h-10 rounded-lg bg-corporate/10 flex items-center justify-center text-corporate shrink-0">
+                    <Building2 className="w-5 h-5 text-accent" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-corporate tracking-wider block">Regional Corporate Office</span>
+                    <h4 className="font-bold text-navy text-sm mb-1">Riyadh, Saudi Arabia</h4>
+                    <p className="text-xs text-secondary-text leading-relaxed">
+                      Bayan Corporate Tower, Level 14,<br />
+                      King Fahd Road, Al-Olaya,<br />
+                      Riyadh 12214, Saudi Arabia
                     </p>
                   </div>
                 </div>
@@ -124,11 +139,10 @@ export const Contact: React.FC = () => {
                     <Phone className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-navy text-sm mb-1">Telephone & Fax</h4>
+                    <h4 className="font-bold text-navy text-sm mb-1">Direct Contact &amp; Mobile</h4>
                     <p className="text-xs text-secondary-text leading-relaxed">
-                      Main Switchboard: +966 (11) 456-7890<br />
-                      Tender & Estimating: +966 (11) 456-7895<br />
-                      Fax: +966 (11) 456-7899
+                      Mobile: <a href="tel:+919456496286" className="text-corporate font-bold hover:underline">+91 94564 96286</a><br />
+                      WhatsApp: <a href="https://wa.me/919456496286" target="_blank" rel="noreferrer" className="text-corporate hover:underline">+91 94564 96286</a>
                     </p>
                   </div>
                 </div>
@@ -139,11 +153,9 @@ export const Contact: React.FC = () => {
                     <Mail className="w-5 h-5 text-accent" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-navy text-sm mb-1">Electronic Mail</h4>
+                    <h4 className="font-bold text-navy text-sm mb-1">Official Email</h4>
                     <p className="text-xs text-secondary-text leading-relaxed">
-                      General Inquiries: <a href="mailto:info@bayanprojects.com" className="text-corporate hover:underline">info@bayanprojects.com</a><br />
-                      Commercial Tenders: <a href="mailto:tenders@bayanprojects.com" className="text-corporate hover:underline">tenders@bayanprojects.com</a><br />
-                      Media & Press: <a href="mailto:media@bayanprojects.com" className="text-corporate hover:underline">media@bayanprojects.com</a>
+                      Official Contact: <a href="mailto:mkccc86@gmail.com" className="text-corporate font-bold hover:underline">mkccc86@gmail.com</a>
                     </p>
                   </div>
                 </div>
@@ -156,8 +168,8 @@ export const Contact: React.FC = () => {
                   <div>
                     <h4 className="font-bold text-navy text-sm mb-1">Official Business Hours</h4>
                     <p className="text-xs text-secondary-text leading-relaxed">
-                      Sunday – Thursday: 08:00 AM – 05:30 PM (AST)<br />
-                      Friday & Saturday: Closed
+                      Monday – Saturday: 09:00 AM – 06:30 PM (IST)<br />
+                      Sunday: Closed
                     </p>
                   </div>
                 </div>

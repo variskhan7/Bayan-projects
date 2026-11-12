@@ -8,7 +8,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { STATIC_SECTORS, STATIC_PROJECTS } from '../data/staticData';
-import { getCustomMedia, SiteMediaMap, resolveVideoSource, getUploadedVideoObjectUrl } from '../services/mediaService';
+import { getCustomMedia, fetchRemoteMedia, SiteMediaMap, resolveVideoSource, getUploadedVideoObjectUrl } from '../services/mediaService';
 
 const DEFAULT_HERO_SLIDES = [
   {
@@ -35,6 +35,13 @@ export const Home: React.FC = () => {
   const [customMedia, setCustomMedia] = useState<SiteMediaMap>(getCustomMedia());
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
 
+  // Initial remote sync so other devices/phones load the exact video link & media
+  useEffect(() => {
+    fetchRemoteMedia().then((remote) => {
+      if (remote) setCustomMedia(remote);
+    });
+  }, []);
+
   // Listen for real-time media updates made from the admin panel
   useEffect(() => {
     const handleUpdate = () => setCustomMedia(getCustomMedia());
@@ -42,10 +49,16 @@ export const Home: React.FC = () => {
     return () => window.removeEventListener('bayan_media_updated', handleUpdate);
   }, []);
 
-  // Load uploaded video from IndexedDB if active
+  // Load uploaded video from server URL or local IndexedDB if active
   useEffect(() => {
     let activeBlobUrl: string | null = null;
     const loadUploadedVideo = async () => {
+      // 1. If server uploaded URL is available (works on all devices)
+      if (customMedia.spotlight_video_source === 'upload' && customMedia.spotlight_video_url) {
+        setUploadedVideoUrl(customMedia.spotlight_video_url);
+        return;
+      }
+      // 2. Fallback to IndexedDB if local browser cached it
       if (customMedia.spotlight_video_source === 'upload') {
         const url = await getUploadedVideoObjectUrl();
         if (url) {
@@ -62,7 +75,7 @@ export const Home: React.FC = () => {
     return () => {
       if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
     };
-  }, [customMedia.spotlight_video_source, customMedia.spotlight_video_name]);
+  }, [customMedia.spotlight_video_source, customMedia.spotlight_video_name, customMedia.spotlight_video_url]);
 
   // Auto-play hero slider
   useEffect(() => {
@@ -163,11 +176,11 @@ export const Home: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20" />
 
             {/* Hero Text exactly styled like Tata image 1 */}
-            <div className="absolute left-6 md:left-16 lg:left-24 bottom-24 max-w-2xl text-white">
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-3 drop-shadow-md">
+            <div className="absolute left-4 sm:left-6 md:left-16 lg:left-24 right-4 bottom-20 sm:bottom-24 max-w-2xl text-white">
+              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-2 sm:mb-3 drop-shadow-md">
                 {heroSlideTitles[idx]}
               </h1>
-              <p className="text-sm sm:text-base text-gray-100 font-normal drop-shadow leading-relaxed">
+              <p className="text-xs sm:text-base text-gray-100 font-normal drop-shadow leading-relaxed line-clamp-3 sm:line-clamp-none">
                 {heroSlideSubtitles[idx]}
               </p>
             </div>
@@ -175,14 +188,14 @@ export const Home: React.FC = () => {
         ))}
 
         {/* Bottom Pagination Bar: Rounded rectangle outline pills with active blue fill */}
-        <div className="absolute bottom-10 left-6 md:left-16 lg:left-24 z-20 flex items-center space-x-3">
+        <div className="absolute bottom-6 sm:bottom-10 left-4 sm:left-6 md:left-16 lg:left-24 z-20 flex items-center space-x-2 sm:space-x-3">
           {DEFAULT_HERO_SLIDES.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentSlide(idx)}
               aria-label={`Slide ${idx + 1}`}
-              className={`h-2.5 rounded-full border border-white transition-all duration-300 ${
-                idx === currentSlide ? 'w-10 bg-[#006bb6] border-[#006bb6]' : 'w-6 bg-transparent hover:bg-white/40'
+              className={`h-2 sm:h-2.5 rounded-full border border-white transition-all duration-300 ${
+                idx === currentSlide ? 'w-8 sm:w-10 bg-[#006bb6] border-[#006bb6]' : 'w-4 sm:w-6 bg-transparent hover:bg-white/40'
               }`}
             />
           ))}
@@ -224,7 +237,7 @@ export const Home: React.FC = () => {
           {/* Giant Number Cutout Graphic with Image Fill ("25") */}
           <div className="relative my-4 inline-block">
             <span 
-              className="text-8xl sm:text-9xl lg:text-[160px] font-black tracking-tighter leading-none select-none text-transparent bg-clip-text"
+              className="text-7xl sm:text-9xl lg:text-[160px] font-black tracking-tighter leading-none select-none text-transparent bg-clip-text"
               style={{
                 backgroundImage: `url("${experienceBg}")`,
                 backgroundSize: 'cover',
@@ -269,7 +282,7 @@ export const Home: React.FC = () => {
           </div>
 
           <div className="relative bg-[#091524] rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-            <div className="relative h-[380px] sm:h-[480px] w-full overflow-hidden">
+            <div className="relative h-[250px] sm:h-[380px] md:h-[480px] w-full overflow-hidden">
               <img
                 src={projectImage}
                 alt={activeProject.title}
@@ -280,17 +293,17 @@ export const Home: React.FC = () => {
               <button
                 onClick={prevProject}
                 aria-label="Previous Landmark Project"
-                className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:bg-gray-100 transition-transform active:scale-95 z-20"
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 w-9 sm:w-12 h-9 sm:h-12 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:bg-gray-100 transition-transform active:scale-95 z-20"
               >
-                <ChevronLeft className="w-6 h-6" />
+                <ChevronLeft className="w-5 sm:w-6 h-5 sm:h-6" />
               </button>
 
               <button
                 onClick={nextProject}
                 aria-label="Next Landmark Project"
-                className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:bg-gray-100 transition-transform active:scale-95 z-20"
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 w-9 sm:w-12 h-9 sm:h-12 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:bg-gray-100 transition-transform active:scale-95 z-20"
               >
-                <ChevronRight className="w-6 h-6" />
+                <ChevronRight className="w-5 sm:w-6 h-5 sm:h-6" />
               </button>
             </div>
 
@@ -307,10 +320,10 @@ export const Home: React.FC = () => {
                 </p>
               </div>
 
-              <div className="shrink-0">
+              <div className="shrink-0 w-full sm:w-auto">
                 <Link
                   to={`/projects/${activeProject.slug}`}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#006bb6] hover:bg-[#005590] text-white text-xs font-bold rounded uppercase tracking-wider transition-all"
+                  className="inline-flex items-center justify-center w-full sm:w-auto gap-2 px-6 py-3 bg-[#006bb6] hover:bg-[#005590] text-white text-xs font-bold rounded uppercase tracking-wider transition-all"
                 >
                   <span>Explore Project</span>
                   <ArrowUpRight className="w-4 h-4" />
@@ -419,16 +432,16 @@ export const Home: React.FC = () => {
             <img
               src={videoSpotlightPoster}
               alt="Video Feature"
-              className="w-full h-[400px] object-cover group-hover:scale-105 transition-transform duration-700"
+              className="w-full h-[250px] sm:h-[350px] md:h-[400px] object-cover group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
               <button
                 onClick={() => setVideoModalOpen(true)}
-                className="w-20 h-20 rounded-full bg-[#006bb6]/90 hover:bg-[#006bb6] text-white flex items-center justify-center shadow-2xl transition-transform transform group-hover:scale-110 active:scale-95 mb-3"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#006bb6]/90 hover:bg-[#006bb6] text-white flex items-center justify-center shadow-2xl transition-transform transform group-hover:scale-110 active:scale-95 mb-3"
               >
-                <Play className="w-8 h-8 fill-current translate-x-0.5" />
+                <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-current translate-x-0.5" />
               </button>
-              <span className="text-sm font-semibold tracking-wide text-white drop-shadow">
+              <span className="text-xs sm:text-sm font-semibold tracking-wide text-white drop-shadow">
                 Click to Watch
               </span>
             </div>
@@ -464,8 +477,8 @@ export const Home: React.FC = () => {
 
       {/* Video Modal with Live Player */}
       {videoModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#091524] rounded-2xl p-4 sm:p-6 max-w-4xl w-full text-white shadow-2xl border border-white/20 relative">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-[#091524] rounded-2xl p-4 sm:p-6 max-w-4xl w-full text-white shadow-2xl border border-white/20 relative my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-[#006bb6] flex items-center justify-center shadow">
@@ -490,19 +503,56 @@ export const Home: React.FC = () => {
             </div>
 
             <div className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-inner">
-              {currentVideo.type === 'iframe' ? (
-                <iframe
-                  src={currentVideo.src}
-                  title="Bayan Projects Corporate Video"
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+              {currentVideo.type === 'google-photos' ? (
+                <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-[#0a1b2e] to-[#040c16]">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-blue-500/20 text-[#006bb6] flex items-center justify-center mb-3 sm:mb-4 border border-blue-400/30">
+                    <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-current translate-x-0.5 text-white" />
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-white mb-2">
+                    Google Photos Shared Video
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-gray-300 max-w-md mb-4 leading-relaxed">
+                    Google Photos security policy external websites par embedded player allow nahi karti. Video ko dekhne ke liye neeche button par click karein.
+                  </p>
+                  <a
+                    href={currentVideo.src}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#006bb6] hover:bg-[#005590] text-white text-xs font-bold rounded-lg shadow transition-all active:scale-95"
+                  >
+                    <span>Watch in Google Photos</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              ) : currentVideo.type === 'iframe' ? (
+                <div className="w-full h-full relative">
+                  <iframe
+                    src={currentVideo.src}
+                    title="Bayan Projects Corporate Video"
+                    className="w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                  {currentVideo.isGoogleDrive && currentVideo.originalUrl && (
+                    <div className="absolute bottom-2 right-2 z-10">
+                      <a
+                        href={currentVideo.originalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-black/80 hover:bg-black text-[11px] text-white font-medium rounded backdrop-blur-sm transition-colors border border-white/20 inline-flex items-center gap-1.5 shadow"
+                      >
+                        <span>Open Drive Video</span>
+                        <ArrowUpRight className="w-3 h-3 text-[#D4AF37]" />
+                      </a>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <video
                   src={currentVideo.src}
                   controls
                   autoPlay
+                  playsInline
                   className="w-full h-full object-contain bg-black"
                 >
                   Your browser does not support the video tag.

@@ -77,14 +77,90 @@ export function getCustomMedia(): SiteMediaMap {
   return {};
 }
 
+/**
+ * Fetch latest site settings from the server so that updates made by admin
+ * (such as video link, video uploads, texts, and slides) immediately sync
+ * across all other devices, mobile phones, and browsers.
+ */
+export async function fetchRemoteMedia(): Promise<SiteMediaMap> {
+  try {
+    const res = await fetch('/api/site-settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+        const local = getCustomMedia();
+        const merged = { ...local, ...data };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        window.dispatchEvent(new Event('bayan_media_updated'));
+        return merged;
+      }
+    }
+  } catch (err) {
+    // Fallback to static JSON file if API middleware is bypassed
+    try {
+      const staticRes = await fetch('/site-settings.json');
+      if (staticRes.ok) {
+        const data = await staticRes.json();
+        if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          const local = getCustomMedia();
+          const merged = { ...local, ...data };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          window.dispatchEvent(new Event('bayan_media_updated'));
+          return merged;
+        }
+      }
+    } catch (_) {}
+  }
+  return getCustomMedia();
+}
+
+// Automatically initiate sync in the background
+if (typeof window !== 'undefined') {
+  fetchRemoteMedia();
+}
+
 export function saveCustomMedia(media: SiteMediaMap): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(media));
-    // Dispatch custom event so open components react instantly
+    // Dispatch custom event so open components react instantly on current device
     window.dispatchEvent(new Event('bayan_media_updated'));
   } catch (err) {
-    console.error('Failed saving custom media:', err);
+    console.error('Failed saving custom media locally:', err);
   }
+
+  // Persist to server so ALL OTHER DEVICES (phones, laptops, other browsers) get the changes
+  fetch('/api/site-settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(media)
+  }).catch((err) => {
+    console.warn('Could not sync media to server endpoint, cached locally:', err);
+  });
+}
+
+/**
+ * Upload video file directly to the server so it is hosted at /uploads/videos/
+ * and can be streamed by any mobile phone or other device without browser-local limitations.
+ */
+export async function uploadVideoFileToServer(file: File): Promise<{ success: boolean; url: string; filename: string }> {
+  try {
+    const res = await fetch(`/api/upload-video?filename=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      body: file
+    });
+    if (res.ok) {
+      const result = await res.json();
+      const current = getCustomMedia();
+      current.spotlight_video_url = result.url;
+      current.spotlight_video_source = 'upload';
+      current.spotlight_video_name = file.name;
+      saveCustomMedia(current);
+      return result;
+    }
+  } catch (err) {
+    console.error('Server video upload failed:', err);
+  }
+  return { success: false, url: '', filename: '' };
 }
 
 export function updateSingleMedia(key: string, base64Url: string): void {
@@ -179,9 +255,11 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 export interface ResolvedVideo {
-  type: 'iframe' | 'video';
+  type: 'iframe' | 'video' | 'google-photos';
   src: string;
   isEmbed: boolean;
+  originalUrl?: string;
+  isGoogleDrive?: boolean;
 }
 
 // Resolves Google Drive, Google Photos, YouTube, Vimeo, or direct MP4/WebM video links
@@ -193,30 +271,34 @@ export function resolveVideoSource(rawUrl?: string): ResolvedVideo {
     return {
       type: 'video',
       src: DEFAULT_VIDEO,
-      isEmbed: false
+      isEmbed: false,
+      originalUrl: DEFAULT_VIDEO
     };
   }
 
   const url = rawUrl.trim();
 
-  // 1. Google Drive Links: e.g. drive.google.com/file/d/FILE_ID/view, drive.google.com/open?id=FILE_ID
+  // 1. Google Drive Links: e.g. drive.google.com/file/d/FILE_ID/view, drive.google.com/open?id=FILE_ID, drive.google.com/uc?id=FILE_ID
   const gDriveMatch = url.match(/(?:drive|docs)\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/);
   if (gDriveMatch && gDriveMatch[1]) {
     const fileId = gDriveMatch[1];
     return {
       type: 'iframe',
       src: `https://drive.google.com/file/d/${fileId}/preview`,
-      isEmbed: true
+      isEmbed: true,
+      originalUrl: url,
+      isGoogleDrive: true
     };
   }
 
-  // 2. YouTube Links: youtube.com/watch?v=..., youtu.be/...
-  const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+  // 2. YouTube Links: youtube.com/watch?v=..., youtu.be/..., youtube.com/shorts/...
+  const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
   if (ytMatch && ytMatch[1]) {
     return {
       type: 'iframe',
       src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0`,
-      isEmbed: true
+      isEmbed: true,
+      originalUrl: url
     };
   }
 
@@ -226,24 +308,27 @@ export function resolveVideoSource(rawUrl?: string): ResolvedVideo {
     return {
       type: 'iframe',
       src: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1`,
-      isEmbed: true
+      isEmbed: true,
+      originalUrl: url
     };
   }
 
-  // 4. Google Photos share links: if user pasted a photos.google.com link
+  // 4. Google Photos share links: Google Photos blocks iframe embedding via X-Frame-Options
   if (url.includes('photos.google.com') || url.includes('photos.app.goo.gl')) {
     return {
-      type: 'iframe',
+      type: 'google-photos',
       src: url,
-      isEmbed: true
+      isEmbed: false,
+      originalUrl: url
     };
   }
 
-  // 5. Direct MP4 / WebM / Blob / Base64 video file
+  // 5. Direct MP4 / WebM / Server uploaded video file
   return {
     type: 'video',
     src: url,
-    isEmbed: false
+    isEmbed: false,
+    originalUrl: url
   };
 }
 
