@@ -58,6 +58,7 @@ export interface SiteMediaMap {
   video_subtitle?: string;
   spotlight_video_url?: string;
   spotlight_video_name?: string;
+  spotlight_video_source?: 'upload' | 'link';
 
   // Custom logo
   brand_logo?: string;
@@ -246,17 +247,7 @@ export function resolveVideoSource(rawUrl?: string): ResolvedVideo {
   };
 }
 
-// Convert local Video file to Base64 (with 25MB limit check)
-export function videoFileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (file.size > 25 * 1024 * 1024) {
-      reject(new Error('Video file size is over 25MB. Please paste a Google Drive link, Google Photos link, or YouTube link for large video files!'));
-      return;
-    }
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (e) => reject(e);
-  });
-}
+// Re-export IndexedDB video storage for robust file handling
+export * from './videoStorage';
+
 

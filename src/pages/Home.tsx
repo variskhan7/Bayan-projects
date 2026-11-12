@@ -8,7 +8,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { STATIC_SECTORS, STATIC_PROJECTS } from '../data/staticData';
-import { getCustomMedia, SiteMediaMap, resolveVideoSource } from '../services/mediaService';
+import { getCustomMedia, SiteMediaMap, resolveVideoSource, getUploadedVideoObjectUrl } from '../services/mediaService';
 
 const DEFAULT_HERO_SLIDES = [
   {
@@ -33,6 +33,7 @@ export const Home: React.FC = () => {
   const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [customMedia, setCustomMedia] = useState<SiteMediaMap>(getCustomMedia());
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
 
   // Listen for real-time media updates made from the admin panel
   useEffect(() => {
@@ -40,6 +41,28 @@ export const Home: React.FC = () => {
     window.addEventListener('bayan_media_updated', handleUpdate);
     return () => window.removeEventListener('bayan_media_updated', handleUpdate);
   }, []);
+
+  // Load uploaded video from IndexedDB if active
+  useEffect(() => {
+    let activeBlobUrl: string | null = null;
+    const loadUploadedVideo = async () => {
+      if (customMedia.spotlight_video_source === 'upload') {
+        const url = await getUploadedVideoObjectUrl();
+        if (url) {
+          if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+          activeBlobUrl = url;
+          setUploadedVideoUrl(url);
+          return;
+        }
+      }
+      setUploadedVideoUrl(null);
+    };
+    loadUploadedVideo();
+
+    return () => {
+      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+    };
+  }, [customMedia.spotlight_video_source, customMedia.spotlight_video_name]);
 
   // Auto-play hero slider
   useEffect(() => {
@@ -91,7 +114,10 @@ export const Home: React.FC = () => {
 
   const experienceBg = customMedia.about_experience_bg || 'https://images.unsplash.com/photo-1541888946425-d0fbb1861593?auto=format&fit=crop&w=1200&q=80';
   const videoSpotlightPoster = customMedia.video_spotlight_poster || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1400&q=80';
-  const currentVideo = resolveVideoSource(customMedia.spotlight_video_url);
+  const activeVideoSrc = (customMedia.spotlight_video_source === 'upload' && uploadedVideoUrl)
+    ? uploadedVideoUrl
+    : customMedia.spotlight_video_url;
+  const currentVideo = resolveVideoSource(activeVideoSrc);
 
   const sectorsFeatured = [
     {

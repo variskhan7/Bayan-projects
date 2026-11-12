@@ -38,14 +38,18 @@ import {
 import { useAdminAuth } from '../../context/AuthContext';
 import { 
   getCustomMedia, 
+  saveCustomMedia,
   updateSingleMedia, 
   updateMediaText,
   removeSingleMedia, 
   removeSlotMediaAndText,
   resetAllMedia, 
   fileToBase64,
-  videoFileToBase64,
   resolveVideoSource,
+  saveUploadedVideoFile,
+  getUploadedVideoObjectUrl,
+  clearUploadedVideoFile,
+  getUploadedVideoMeta,
   SiteMediaMap 
 } from '../../services/mediaService';
 import { 
@@ -293,6 +297,7 @@ export const AdminDashboard: React.FC = () => {
   // Video state
   const [videoLinkInput, setVideoLinkInput] = useState('');
   const [videoUploading, setVideoUploading] = useState(false);
+  const [uploadedVideoBlobUrl, setUploadedVideoBlobUrl] = useState<string | null>(null);
 
   const getSlotTextValue = (key?: string, defaultVal: string = '') => {
     if (!key) return '';
@@ -341,43 +346,85 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Video spotlight handlers
-  const handleSaveVideoLink = () => {
+  const handleSaveVideoLink = async () => {
     const trimmed = videoLinkInput.trim();
     if (!trimmed) {
+      await clearUploadedVideoFile();
+      setUploadedVideoBlobUrl(null);
       removeSingleMedia('spotlight_video_url');
       removeSingleMedia('spotlight_video_name');
+      removeSingleMedia('spotlight_video_source');
       setStatusMessage({ text: 'Video link cleared. Default showcase video restored.', type: 'info' });
     } else {
-      updateMediaText('spotlight_video_url', trimmed);
-      updateMediaText('spotlight_video_name', 'Linked Video');
-      setStatusMessage({ text: 'Video link saved successfully and live on website!', type: 'success' });
+      // Clear uploaded video from IndexedDB when switching to a link
+      await clearUploadedVideoFile();
+      setUploadedVideoBlobUrl(null);
+
+      const current = getCustomMedia();
+      current.spotlight_video_url = trimmed;
+      current.spotlight_video_name = 'Linked Video';
+      current.spotlight_video_source = 'link';
+      saveCustomMedia(current);
+
+      setStatusMessage({ text: 'Video link applied and saved live on website!', type: 'success' });
     }
     setTimeout(() => setStatusMessage(null), 3500);
   };
 
   const handleVideoFileUpload = async (file: File) => {
+    if (!file.type.startsWith('video/') && !file.name.match(/\.(mp4|webm|mov|mkv|ogg)$/i)) {
+      alert('Please select a valid video file (.mp4, .webm, etc.)');
+      return;
+    }
+
     setVideoUploading(true);
+    setStatusMessage({ text: `Uploading video "${file.name}" (${(file.size / (1024 * 1024)).toFixed(1)} MB)...`, type: 'info' });
+
     try {
-      const base64 = await videoFileToBase64(file);
-      updateSingleMedia('spotlight_video_url', base64);
-      updateMediaText('spotlight_video_name', file.name);
+      const { blobUrl, meta } = await saveUploadedVideoFile(file);
+      
+      // Revoke previous blob url if any
+      if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedVideoBlobUrl);
+      }
+      setUploadedVideoBlobUrl(blobUrl);
+
+      // Save custom media pointer
+      const current = getCustomMedia();
+      current.spotlight_video_source = 'upload';
+      current.spotlight_video_name = meta.name;
+      delete current.spotlight_video_url; // Clear link if previous
+      saveCustomMedia(current);
+
       setVideoLinkInput('');
-      setStatusMessage({ text: `Video file "${file.name}" uploaded successfully!`, type: 'success' });
-      setTimeout(() => setStatusMessage(null), 3500);
+      setStatusMessage({ text: `Video "${file.name}" uploaded and saved successfully!`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 4000);
     } catch (err: any) {
       console.error('Video upload error:', err);
-      alert(err.message || 'Failed to upload video file.');
+      alert('Failed to save video: ' + (err.message || 'Unknown error'));
+      setStatusMessage(null);
     } finally {
       setVideoUploading(false);
     }
   };
 
-  const handleResetVideo = () => {
+  const handleResetVideo = async () => {
     if (confirm('Reset Video to default corporate presentation?')) {
-      removeSingleMedia('spotlight_video_url');
-      removeSingleMedia('spotlight_video_name');
-      removeSingleMedia('video_spotlight_poster');
-      removeSlotMediaAndText('spotlight_video_url', 'video_title', 'video_subtitle');
+      await clearUploadedVideoFile();
+      if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(uploadedVideoBlobUrl);
+      }
+      setUploadedVideoBlobUrl(null);
+
+      const current = getCustomMedia();
+      delete current.spotlight_video_url;
+      delete current.spotlight_video_name;
+      delete current.spotlight_video_source;
+      delete current.video_spotlight_poster;
+      delete current.video_title;
+      delete current.video_subtitle;
+      saveCustomMedia(current);
+
       setVideoLinkInput('');
       setStatusMessage({ text: 'Video spotlight restored to default.', type: 'info' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -414,6 +461,13 @@ export const AdminDashboard: React.FC = () => {
     const media = getCustomMedia();
     setMediaMap(media);
     setVideoLinkInput(media.spotlight_video_url || '');
+    if (media.spotlight_video_source === 'upload') {
+      getUploadedVideoObjectUrl().then((url) => {
+        if (url) setUploadedVideoBlobUrl(url);
+      });
+    } else {
+      setUploadedVideoBlobUrl(null);
+    }
     setJobsList(getAllAdminJobs());
     getAllApplications().then(setApplications);
     getAllEnquiries().then(setEnquiries);
@@ -429,6 +483,13 @@ export const AdminDashboard: React.FC = () => {
     const handleMediaUpdate = () => {
       const media = getCustomMedia();
       setMediaMap(media);
+      if (media.spotlight_video_source === 'upload') {
+        getUploadedVideoObjectUrl().then((url) => {
+          if (url) setUploadedVideoBlobUrl(url);
+        });
+      } else {
+        setUploadedVideoBlobUrl(null);
+      }
       if (media.spotlight_video_url && !videoLinkInput) {
         setVideoLinkInput(media.spotlight_video_url);
       }
@@ -1163,9 +1224,13 @@ export const AdminDashboard: React.FC = () => {
                       <span>Live Website Video Player</span>
                     </h3>
 
-                    {mediaMap.spotlight_video_url ? (
-                      <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-emerald-100 text-emerald-800">
-                        ● Custom Video Active
+                    {mediaMap.spotlight_video_source === 'upload' ? (
+                      <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                        ● Uploaded File Active
+                      </span>
+                    ) : mediaMap.spotlight_video_source === 'link' || mediaMap.spotlight_video_url ? (
+                      <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-blue-100 text-[#006bb6] flex items-center gap-1">
+                        ● Linked Video Active
                       </span>
                     ) : (
                       <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gray-100 text-gray-600">
@@ -1176,7 +1241,9 @@ export const AdminDashboard: React.FC = () => {
 
                   {/* Player Container */}
                   {(() => {
-                    const resolved = resolveVideoSource(mediaMap.spotlight_video_url);
+                    const isUpload = mediaMap.spotlight_video_source === 'upload' && uploadedVideoBlobUrl;
+                    const srcToResolve = isUpload ? uploadedVideoBlobUrl! : (mediaMap.spotlight_video_url || '');
+                    const resolved = resolveVideoSource(srcToResolve);
                     return (
                       <div className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-md border border-gray-800">
                         {resolved.type === 'iframe' ? (
@@ -1189,6 +1256,7 @@ export const AdminDashboard: React.FC = () => {
                           />
                         ) : (
                           <video
+                            key={srcToResolve}
                             src={resolved.src}
                             controls
                             className="w-full h-full object-contain bg-black"
@@ -1204,15 +1272,23 @@ export const AdminDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 text-gray-600 min-w-0">
                       <Link2 className="w-4 h-4 text-accent shrink-0" />
                       <span className="font-medium truncate">
-                        {mediaMap.spotlight_video_url ? mediaMap.spotlight_video_url : 'Playing Default Engineering Video'}
+                        {mediaMap.spotlight_video_source === 'upload'
+                          ? `Local File: ${mediaMap.spotlight_video_name || 'Uploaded Video'}`
+                          : (mediaMap.spotlight_video_url || 'Playing Default Engineering Video')}
                       </span>
                     </div>
 
-                    {mediaMap.spotlight_video_url && (
+                    {(mediaMap.spotlight_video_source || mediaMap.spotlight_video_url) && (
                       <button
-                        onClick={() => {
+                        onClick={async () => {
+                          await clearUploadedVideoFile();
+                          if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
+                            URL.revokeObjectURL(uploadedVideoBlobUrl);
+                          }
+                          setUploadedVideoBlobUrl(null);
                           removeSingleMedia('spotlight_video_url');
                           removeSingleMedia('spotlight_video_name');
+                          removeSingleMedia('spotlight_video_source');
                           setVideoLinkInput('');
                           setStatusMessage({ text: 'Custom video removed. Default restored.', type: 'info' });
                           setTimeout(() => setStatusMessage(null), 3000);
@@ -1368,16 +1444,30 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <label className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all border-2 border-dashed ${
+                  {mediaMap.spotlight_video_source === 'upload' && (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
+                      <div className="flex items-center gap-2 truncate">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span className="font-bold truncate">
+                          {mediaMap.spotlight_video_name || 'Uploaded Video'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
+                        IndexedDB Active
+                      </span>
+                    </div>
+                  )}
+
+                  <label className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all border-2 border-dashed ${
                     videoUploading 
                       ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-wait' 
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 active:scale-95'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 active:scale-95 shadow-sm'
                   }`}>
                     <Upload className="w-4 h-4" />
-                    <span>{videoUploading ? 'Processing & Saving Video...' : 'Choose MP4 Video File (< 25MB)'}</span>
+                    <span>{videoUploading ? 'Saving Video to Database...' : 'Choose & Upload Video File (MP4, WebM, MOV)'}</span>
                     <input
                       type="file"
-                      accept="video/mp4,video/webm,video/ogg"
+                      accept="video/*,.mp4,.webm,.mov,.mkv,.ogg"
                       disabled={videoUploading}
                       className="hidden"
                       onChange={(e) => {
@@ -1387,8 +1477,8 @@ export const AdminDashboard: React.FC = () => {
                     />
                   </label>
 
-                  <p className="text-[10px] text-gray-400 text-center">
-                    Note: Badi video files (25MB se badi) ke liye Google Drive ya YouTube link use karna behtar rehta hai.
+                  <p className="text-[10px] text-gray-500 text-center">
+                    ✨ High-capacity IndexedDB storage use ho raha hai - video bina kisi error ke safely browser database me store hogi.
                   </p>
                 </div>
 
