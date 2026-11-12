@@ -214,6 +214,36 @@ export function resetAllMedia(): void {
   window.dispatchEvent(new Event('bayan_media_updated'));
 }
 
+/**
+ * Upload image file to server so it is hosted at /uploads/images/
+ * and is accessible from ALL devices (mobile, other PCs, other browsers).
+ * Returns the public URL on success, null on failure.
+ */
+export async function uploadImageToServer(key: string, file: File): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `/api/upload-image?key=${encodeURIComponent(key)}&filename=${encodeURIComponent(file.name)}`,
+      { method: 'POST', body: file }
+    );
+    if (res.ok) {
+      const result = await res.json();
+      if (result.url) {
+        // Update local cache with the URL (don't re-POST to avoid loop)
+        const current = getCustomMedia();
+        current[key] = result.url;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+          window.dispatchEvent(new Event('bayan_media_updated'));
+        } catch (_) {}
+        return result.url;
+      }
+    }
+  } catch (err) {
+    console.error('Image upload to server failed:', err);
+  }
+  return null;
+}
+
 // Convert File to Base64 with compression/downscaling
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

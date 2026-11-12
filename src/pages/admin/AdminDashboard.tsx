@@ -45,6 +45,7 @@ import {
   removeSlotMediaAndText,
   resetAllMedia, 
   fileToBase64,
+  uploadImageToServer,
   resolveVideoSource,
   uploadVideoFileToServer,
   saveUploadedVideoFile,
@@ -347,27 +348,21 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Video spotlight handlers
-  const handleSaveVideoLink = async () => {
+  const handleSaveVideoLink = () => {
     const trimmed = videoLinkInput.trim();
     if (!trimmed) {
-      await clearUploadedVideoFile();
-      setUploadedVideoBlobUrl(null);
       removeSingleMedia('spotlight_video_url');
       removeSingleMedia('spotlight_video_name');
       removeSingleMedia('spotlight_video_source');
-      setStatusMessage({ text: 'Video link cleared. Default showcase video restored.', type: 'info' });
+      setStatusMessage({ text: 'YouTube link removed. Default video restored.', type: 'info' });
     } else {
-      // Clear uploaded video from IndexedDB when switching to a link
-      await clearUploadedVideoFile();
-      setUploadedVideoBlobUrl(null);
-
       const current = getCustomMedia();
       current.spotlight_video_url = trimmed;
-      current.spotlight_video_name = 'Linked Video';
+      current.spotlight_video_name = 'YouTube Video';
       current.spotlight_video_source = 'link';
       saveCustomMedia(current);
 
-      setStatusMessage({ text: 'Video link saved! Sabhi devices par live update ho gayi hai.', type: 'success' });
+      setStatusMessage({ text: 'YouTube video link saved! Ab sabhi devices par live video play hogi.', type: 'success' });
     }
     setTimeout(() => setStatusMessage(null), 3500);
   };
@@ -413,21 +408,12 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleResetVideo = async () => {
+  const handleResetVideo = () => {
     if (confirm('Reset Video to default corporate presentation?')) {
-      await clearUploadedVideoFile();
-      if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(uploadedVideoBlobUrl);
-      }
-      setUploadedVideoBlobUrl(null);
-
       const current = getCustomMedia();
       delete current.spotlight_video_url;
       delete current.spotlight_video_name;
       delete current.spotlight_video_source;
-      delete current.video_spotlight_poster;
-      delete current.video_title;
-      delete current.video_subtitle;
       saveCustomMedia(current);
 
       setVideoLinkInput('');
@@ -520,13 +506,20 @@ export const AdminDashboard: React.FC = () => {
   const handleFileUpload = async (key: string, file: File) => {
     setUploadingKey(key);
     try {
-      const base64 = await fileToBase64(file);
-      updateSingleMedia(key, base64);
-      setStatusMessage({ text: 'Updated image successfully in Base64!', type: 'success' });
-      setTimeout(() => setStatusMessage(null), 3500);
+      // 1. Try server upload first — image saved to /uploads/images/, accessible on ALL devices
+      const serverUrl = await uploadImageToServer(key, file);
+      if (serverUrl) {
+        setStatusMessage({ text: '✅ Photo server par save ho gayi! Sabhi devices aur mobile par dikhai degi.', type: 'success' });
+      } else {
+        // 2. Fallback: base64 (only current device, better than nothing)
+        const base64 = await fileToBase64(file);
+        updateSingleMedia(key, base64);
+        setStatusMessage({ text: '⚠️ Photo sirf is device par save hui (server se connect nahi ho saka).', type: 'info' });
+      }
+      setTimeout(() => setStatusMessage(null), 4000);
     } catch (err) {
-      console.error('File to base64 conversion failed:', err);
-      alert('Failed to process image file.');
+      console.error('File upload failed:', err);
+      alert('Photo upload mein koi problem aayi. Dobara try karein.');
     } finally {
       setUploadingKey(null);
     }
@@ -1191,130 +1184,169 @@ export const AdminDashboard: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* TAB 3: VIDEO SPOTLIGHT MANAGEMENT */}
+        {/* TAB 3: YOUTUBE VIDEO SPOTLIGHT & THUMBNAIL */}
         {/* ======================================================== */}
         {activeTab === 'video' && (
           <div className="space-y-6">
-            {/* Header info */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            {/* Clean Header Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <div>
-                <h1 className="text-2xl font-black text-navy flex items-center gap-2.5">
-                  <Video className="w-7 h-7 text-[#006bb6]" />
+                <h1 className="text-xl sm:text-2xl font-black text-navy flex items-center gap-2.5">
+                  <Video className="w-6 h-6 text-[#006bb6]" />
                   <span>Corporate Video Spotlight Control</span>
                 </h1>
-                <p className="text-xs sm:text-sm text-secondary-text mt-1">
-                  Website ke VIDEOS section par play hone wali video aur poster image ko yaha se control karein. Google Drive, Google Photos, ya YouTube link paste karein ya direct video file upload karein.
+                <p className="text-xs text-secondary-text mt-1">
+                  Website ke VIDEOS section ke liye YouTube video link paste karein aur thumbnail poster photo change karein.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              {mediaMap.spotlight_video_url && (
                 <button
                   onClick={handleResetVideo}
-                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg text-xs border border-red-200 transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg text-xs border border-red-200 transition-colors flex items-center gap-1.5 self-start sm:self-auto"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset Video to Default</span>
                 </button>
-              </div>
+              )}
             </div>
 
-            {/* Main Video Management Grid */}
+            {/* Main Clean 2-Column Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Column: Live Video Player Preview (7 cols) */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-navy text-sm flex items-center gap-2">
-                      <Film className="w-4 h-4 text-[#006bb6]" />
-                      <span>Live Website Video Player</span>
-                    </h3>
+              <div className="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-navy text-sm flex items-center gap-2">
+                    <Film className="w-4 h-4 text-[#006bb6]" />
+                    <span>Live Website Video Player</span>
+                  </h3>
 
-                    {mediaMap.spotlight_video_source === 'upload' ? (
-                      <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                        ● Uploaded File Active
-                      </span>
-                    ) : mediaMap.spotlight_video_source === 'link' || mediaMap.spotlight_video_url ? (
-                      <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-blue-100 text-[#006bb6] flex items-center gap-1">
-                        ● Linked Video Active
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gray-100 text-gray-600">
-                        ○ Default Presentation Video
-                      </span>
-                    )}
+                  {mediaMap.spotlight_video_url ? (
+                    <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full bg-blue-100 text-[#006bb6] flex items-center gap-1">
+                      ● YouTube Video Active
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gray-100 text-gray-600">
+                      ○ Default Showcase Video
+                    </span>
+                  )}
+                </div>
+
+                {/* Player Container */}
+                {(() => {
+                  const resolved = resolveVideoSource(mediaMap.spotlight_video_url || '');
+                  return (
+                    <div className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-md border border-gray-800">
+                      {resolved.type === 'iframe' ? (
+                        <iframe
+                          src={resolved.src}
+                          title="Admin Video Preview"
+                          className="w-full h-full border-0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <video
+                          key={mediaMap.spotlight_video_url || 'default'}
+                          src={resolved.src}
+                          controls
+                          className="w-full h-full object-contain bg-black"
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                    <Link2 className="w-4 h-4 text-accent shrink-0" />
+                    <span className="font-medium truncate">
+                      {mediaMap.spotlight_video_url || 'Default Showcase Video Playing'}
+                    </span>
                   </div>
 
-                  {/* Player Container */}
-                  {(() => {
-                    const isUpload = mediaMap.spotlight_video_source === 'upload' && uploadedVideoBlobUrl;
-                    const srcToResolve = isUpload ? uploadedVideoBlobUrl! : (mediaMap.spotlight_video_url || '');
-                    const resolved = resolveVideoSource(srcToResolve);
-                    return (
-                      <div className="aspect-video bg-black rounded-xl overflow-hidden relative shadow-md border border-gray-800">
-                        {resolved.type === 'iframe' ? (
-                          <iframe
-                            src={resolved.src}
-                            title="Admin Video Preview"
-                            className="w-full h-full border-0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            allowFullScreen
-                          />
-                        ) : (
-                          <video
-                            key={srcToResolve}
-                            src={resolved.src}
-                            controls
-                            className="w-full h-full object-contain bg-black"
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  {mediaMap.spotlight_video_url && (
+                    <button
+                      onClick={() => {
+                        removeSingleMedia('spotlight_video_url');
+                        removeSingleMedia('spotlight_video_name');
+                        removeSingleMedia('spotlight_video_source');
+                        setVideoLinkInput('');
+                        setStatusMessage({ text: 'YouTube video removed. Default restored.', type: 'info' });
+                        setTimeout(() => setStatusMessage(null), 3000);
+                      }}
+                      className="text-xs text-red-600 font-bold hover:underline shrink-0 ml-3"
+                    >
+                      Remove Video
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-gray-600 min-w-0">
-                      <Link2 className="w-4 h-4 text-accent shrink-0" />
-                      <span className="font-medium truncate">
-                        {mediaMap.spotlight_video_source === 'upload'
-                          ? `Local File: ${mediaMap.spotlight_video_name || 'Uploaded Video'}`
-                          : (mediaMap.spotlight_video_url || 'Playing Default Engineering Video')}
-                      </span>
+              {/* Right Column: 1. Paste YouTube Link + 2. Thumbnail Poster (5 cols) */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* 1. Paste YouTube Video Link Card */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-bold shadow-sm border border-red-100">
+                      <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-navy text-sm">
+                        YouTube Video Link
+                      </h3>
+                      <p className="text-[11px] text-gray-500">
+                        Paste YouTube video or shorts link
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-navy uppercase mb-1">
+                        Video URL / Link
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://www.youtube.com/watch?v=... ya https://youtu.be/..."
+                        value={videoLinkInput}
+                        onChange={(e) => setVideoLinkInput(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-navy focus:bg-white focus:outline-none focus:border-[#006bb6]"
+                      />
                     </div>
 
-                    {(mediaMap.spotlight_video_source || mediaMap.spotlight_video_url) && (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={async () => {
-                          await clearUploadedVideoFile();
-                          if (uploadedVideoBlobUrl && uploadedVideoBlobUrl.startsWith('blob:')) {
-                            URL.revokeObjectURL(uploadedVideoBlobUrl);
-                          }
-                          setUploadedVideoBlobUrl(null);
-                          removeSingleMedia('spotlight_video_url');
-                          removeSingleMedia('spotlight_video_name');
-                          removeSingleMedia('spotlight_video_source');
-                          setVideoLinkInput('');
-                          setStatusMessage({ text: 'Custom video removed. Default restored.', type: 'info' });
-                          setTimeout(() => setStatusMessage(null), 3000);
-                        }}
-                        className="text-xs text-red-600 font-bold hover:underline shrink-0 ml-3"
+                        onClick={handleSaveVideoLink}
+                        className="flex-1 py-2.5 bg-[#006bb6] hover:bg-[#005590] text-white rounded-xl text-xs font-bold shadow transition-all flex items-center justify-center gap-1.5 active:scale-95"
                       >
-                        Remove Video
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Apply &amp; Save Video Link</span>
                       </button>
-                    )}
+
+                      {videoLinkInput && (
+                        <button
+                          onClick={() => setVideoLinkInput('')}
+                          className="px-3.5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Video Thumbnail Poster Setting */}
+                {/* 2. Section Thumbnail / Poster Photo Card */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="font-bold text-navy text-sm">
-                        Section Thumbnail Poster Photo
+                        Video Thumbnail Poster
                       </h3>
-                      <p className="text-xs text-secondary-text mt-0.5">
-                        Ye photo website ke VIDEOS section par play button ke pichhe dikhti hai.
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Play button ke pichhe dikhne wali photo
                       </p>
                     </div>
 
@@ -1326,7 +1358,7 @@ export const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <div className="w-full sm:w-48 h-28 bg-gray-100 rounded-xl overflow-hidden shrink-0 border">
+                    <div className="w-full sm:w-36 h-24 bg-gray-100 rounded-xl overflow-hidden shrink-0 border border-gray-200">
                       <img
                         src={mediaMap.video_spotlight_poster || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1400&q=80'}
                         alt="Poster Preview"
@@ -1335,9 +1367,9 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="flex-1 space-y-2 w-full">
-                      <label className="w-full py-2.5 px-4 bg-[#006bb6] hover:bg-[#005590] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow transition-all">
-                        <Upload className="w-4 h-4" />
-                        <span>Change Poster Photo (Base64)</span>
+                      <label className="w-full py-2.5 px-4 bg-[#006bb6] hover:bg-[#005590] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer shadow transition-all active:scale-95">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Change Poster Photo</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -1352,189 +1384,13 @@ export const AdminDashboard: React.FC = () => {
                       {mediaMap.video_spotlight_poster && (
                         <button
                           onClick={() => handleRemovePhoto('video_spotlight_poster')}
-                          className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold border border-red-200 transition-colors"
+                          className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold border border-red-200 transition-colors"
                         >
-                          Revert Poster to Default
+                          Revert to Default
                         </button>
                       )}
                     </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Right Column: Controls, Links, File Upload, Text (5 cols) */}
-              <div className="lg:col-span-5 space-y-6">
-                {/* 1. Paste Video Link */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 text-[#006bb6] flex items-center justify-center font-bold">
-                      <Link2 className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-navy text-sm">
-                        Option 1: Paste Video Link
-                      </h3>
-                      <p className="text-[11px] text-gray-500">
-                        Google Drive, Google Photos, YouTube, ya MP4 Link
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-navy uppercase mb-1">
-                      Video Sharing URL / Link
-                    </label>
-                    <div className="space-y-2">
-                      <input
-                        type="url"
-                        placeholder="https://drive.google.com/file/d/.../view OR https://youtu.be/..."
-                        value={videoLinkInput}
-                        onChange={(e) => setVideoLinkInput(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-navy focus:bg-white focus:outline-none focus:border-[#006bb6]"
-                      />
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleSaveVideoLink}
-                          className="flex-1 py-2.5 bg-[#006bb6] hover:bg-[#005590] text-white rounded-lg text-xs font-bold shadow transition-all flex items-center justify-center gap-1.5 active:scale-95"
-                        >
-                          <Save className="w-3.5 h-3.5" />
-                          <span>Apply & Save Video Link</span>
-                        </button>
-
-                        {videoLinkInput && (
-                          <button
-                            onClick={() => setVideoLinkInput('')}
-                            className="px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Instructions Box in Hindi */}
-                  <div className="p-4 bg-blue-50/80 rounded-xl border border-blue-200 space-y-2.5 text-xs text-navy">
-                    <span className="font-bold text-[11px] uppercase tracking-wider text-[#006bb6] flex items-center gap-1.5">
-                      <span>📌 Sabhi Devices (Mobile &amp; PC) Par Video Chalne Ke Niyam:</span>
-                    </span>
-                    <ul className="space-y-2 text-[11px] text-gray-700 list-disc list-inside">
-                      <li>
-                        <strong>Google Drive:</strong> Drive me video file par Right Click karein &rarr; <em>Share</em> &rarr; General access me <strong>&quot;Anyone with the link&quot; (Jiske paas link ho wo dekh sake)</strong> select karein. (Agar private hogi to dusre device par Google block kar dega).
-                      </li>
-                      <li>
-                        <strong>YouTube (Best &amp; Universal):</strong> YouTube ka link (e.g. <code>https://youtu.be/...</code> ya <code>https://youtube.com/watch?v=...</code>) paste karein. Ye bina kisi login ke 100% sabhi mobiles aur computers par chalta hai.
-                      </li>
-                      <li>
-                        <strong>Direct MP4 File Upload (Option 2):</strong> Video file ko direct upload karein — ye seedha server par save hokar sabhi users ko dikhegi.
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-
-                {/* 2. Direct Video File Upload */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                      <Upload className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-navy text-sm">
-                        Option 2: Direct Video File Upload
-                      </h3>
-                      <p className="text-[11px] text-gray-500">
-                        Apne computer se direct MP4 / WebM video upload karein
-                      </p>
-                    </div>
-                  </div>
-
-                  {mediaMap.spotlight_video_source === 'upload' && (
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-between text-xs text-emerald-900">
-                      <div className="flex items-center gap-2 truncate">
-                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span className="font-bold truncate">
-                          {mediaMap.spotlight_video_name || 'Uploaded Video'}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-bold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full shrink-0">
-                        IndexedDB Active
-                      </span>
-                    </div>
-                  )}
-
-                  <label className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all border-2 border-dashed ${
-                    videoUploading 
-                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-wait' 
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 active:scale-95 shadow-sm'
-                  }`}>
-                    <Upload className="w-4 h-4" />
-                    <span>{videoUploading ? 'Saving Video to Database...' : 'Choose & Upload Video File (MP4, WebM, MOV)'}</span>
-                    <input
-                      type="file"
-                      accept="video/*,.mp4,.webm,.mov,.mkv,.ogg"
-                      disabled={videoUploading}
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleVideoFileUpload(file);
-                      }}
-                    />
-                  </label>
-
-                  <p className="text-[10px] text-gray-500 text-center">
-                    ✨ Server Hosting + High-capacity IndexedDB Active — Video sabhi devices aur mobile phones par directly stream hogi.
-                  </p>
-                </div>
-
-                {/* 3. Section Titles & Narrative */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                      <Type className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-navy text-sm">
-                        Videos Section Title & Narrative
-                      </h3>
-                      <p className="text-[11px] text-gray-500">
-                        Heading aur description badlein
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-navy uppercase mb-1">
-                      Main Heading (Bold)
-                    </label>
-                    <input
-                      type="text"
-                      value={getSlotTextValue('video_title', 'VIDEOS')}
-                      onChange={(e) => setSlotTexts({ ...slotTexts, video_title: e.target.value })}
-                      placeholder="VIDEOS"
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-navy focus:bg-white focus:outline-none focus:border-[#006bb6]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-navy uppercase mb-1">
-                      Description / Narrative Text
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={getSlotTextValue('video_subtitle', 'Bayan Projects is actively investing in its infrastructure, alleviating supply chain bottlenecks, and ensuring access to electricity, water, sanitation, and healthcare for all. Reflecting on the journey, Bayan Projects has cultivated capabilities, setting the stage for #TransformingLives.')}
-                      onChange={(e) => setSlotTexts({ ...slotTexts, video_subtitle: e.target.value })}
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-800 focus:bg-white focus:outline-none focus:border-[#006bb6] leading-relaxed"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => handleSaveSlotText('video_title', 'VIDEOS', 'video_subtitle', 'Bayan Projects is actively investing in its infrastructure, alleviating supply chain bottlenecks, and ensuring access to electricity, water, sanitation, and healthcare for all. Reflecting on the journey, Bayan Projects has cultivated capabilities, setting the stage for #TransformingLives.')}
-                    className="w-full py-2.5 bg-[#006bb6] hover:bg-[#005590] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow transition-all active:scale-95"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save Heading & Description</span>
-                  </button>
                 </div>
               </div>
             </div>

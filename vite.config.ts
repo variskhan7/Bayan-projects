@@ -121,6 +121,44 @@ function bayanApiPlugin(): Plugin {
       return;
     }
 
+    // 6. POST /api/upload-image — saves image to public/uploads/images/ and returns public URL
+    if (pathname === '/api/upload-image' && req.method === 'POST') {
+      const urlObj = new URL(reqUrl, 'http://localhost');
+      const rawName = urlObj.searchParams.get('filename') || 'image.jpg';
+      const keyParam = urlObj.searchParams.get('key') || 'custom_image';
+      const cleanExt = path.extname(rawName) || '.jpg';
+      const filename = `${keyParam}-${Date.now()}${cleanExt}`;
+      const uploadDir = getPublicPath(path.join('uploads', 'images'));
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+      const targetPath = path.join(uploadDir, filename);
+
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          fs.writeFileSync(targetPath, buffer);
+          const publicUrl = `/uploads/images/${filename}`;
+
+          // Update site-settings.json with the public URL for this key
+          const settingsPath = getPublicPath('site-settings.json');
+          let currentSettings: any = {};
+          if (fs.existsSync(settingsPath)) {
+            try { currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')); } catch (_) {}
+          }
+          currentSettings[keyParam] = publicUrl;
+          fs.writeFileSync(settingsPath, JSON.stringify(currentSettings, null, 2), 'utf-8');
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, url: publicUrl }));
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     next();
   };
 
